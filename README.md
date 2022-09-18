@@ -12,7 +12,7 @@ $ pip install fastapi
 $ pip install uvicorn
 ```
 
-### get, post, delete를 이용하여 웹과 앱에서 접속할 메소드 추가
+###get, post, delete를 이용하여 웹과 앱에서 접속할 메소드 추가
 
 ###회원가입과 로그인
 ```c
