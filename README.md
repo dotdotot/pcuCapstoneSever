@@ -9,7 +9,7 @@
 ```c
 $ pip install fastapi
 $ pip install uvicorn
-```c
+```
 
 
 ![테이블](https://user-images.githubusercontent.com/69308065/190900779-ff889144-99b7-413d-8159-0b2368c2c813.png)
