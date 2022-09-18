@@ -92,6 +92,10 @@ mkcert 서버 주소 ::1
 
 ### Uvicron에 파일들의 위치를 알려주고 실행
 ![main](https://user-images.githubusercontent.com/69308065/190902422-30d9e336-e400-49d6-bd27-db447a79ec00.png)
+
+### 서버가 HTTPS로 잘 띄워지는 것을 확인
+![https](https://user-images.githubusercontent.com/69308065/190902574-cedee794-d1ae-4dfe-a406-0cdcef4bbd4d.png)
+
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ##3 데이터베이스 설계
 ![테이블1](https://user-images.githubusercontent.com/69308065/190901303-4bc9d66b-5dc8-49b1-8a2d-1de9e5483511.png)
