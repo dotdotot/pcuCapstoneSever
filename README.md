@@ -1,4 +1,4 @@
-# pcuCapstoneSever
+# pcuCapstoneServer
 
 1. API server를 구축하기 위해 FastAPI를 사용하여 서버를 구축
 2. FastAPI를 HTTPS로 띄우기 
@@ -14,7 +14,10 @@ $ pip install uvicorn
 
 ### get, post, delete를 이용하여 웹과 앱에서 접속할 메소드 추가
 
-
+### 데이터베이스 연결
+create_engine으 인자값으로 DB URL을 추가하여 DB Host에 DB연결을 생성
+![DB연결](https://user-images.githubusercontent.com/69308065/190901977-0b603d62-3898-4a67-8cbf-99052331f770.png)
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ##3 데이터베이스 설계
 ![테이블1](https://user-images.githubusercontent.com/69308065/190901303-4bc9d66b-5dc8-49b1-8a2d-1de9e5483511.png)
 
