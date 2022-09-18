@@ -76,7 +76,7 @@ def find_room(room_name:str,db:Session=Depends(get_db)):
 
 ```
 ### 데이터베이스 연결
-###create_engine으 인자값으로 DB URL을 추가하여 DB Host에 DB연결을 생성
+create_engine으 인자값으로 DB URL을 추가하여 DB Host에 DB연결을 생성
 ![DB연결](https://user-images.githubusercontent.com/69308065/190901977-0b603d62-3898-4a67-8cbf-99052331f770.png)
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ##2 HTTPS로 띄우기
