@@ -1,16 +1,17 @@
 
 from enum import unique
 from operator import index
-from tkinter import CASCADE
 from pymysql import Timestamp
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, SmallInteger, String, column, func, DateTime
 from sqlalchemy.orm import relationship
 from db import Base
 from enum import Enum
+
+from tkinter import CASCADE
 from sqlalchemy.orm import Session
 
 class BaseMixin:
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, unique=True)
     created_at = Column(DateTime, nullable=False, default=func.utc_timestamp())
     updated_at = Column(DateTime, nullable=False, default=func.utc_timestamp(), onupdate=func.utc_timestamp())
 
@@ -56,30 +57,43 @@ class User(Base,BaseMixin):
     name= Column(String(length=255)) # 이름
     email= Column(String(length=255),index=True,unique=True) # 이메일
     phone= Column(String(length=255),unique=True, index=True) # 전화번호
+
+    list = relationship(
+        "RoomList",
+        back_populates="users",
+        cascade="all, delete",
+        passive_deletes=True,
+    )
     
-    room_list = relationship("RoomList",back_populates="users",cascade="all, delete-orphan")
 
 # 방 목록 테이블
 class RoomList(Base,BaseMixin):
     __tablename__ = 'room_list'
 
-    user_id= Column(Integer,ForeignKey("users.id"))
+    user_id= Column(Integer,ForeignKey("users.id",ondelete="CASCADE"))
     room_name= Column(String(length=255),index=True,unique=True)
    
-    users = relationship("User", back_populates="room_list")
-    room = relationship("Room_Management", back_populates="roomList",cascade="all, delete-orphan")
+    users = relationship("User",back_populates="list")
+    room = relationship(
+        "Room_Management",
+        back_populates="room_list",
+        cascade="all, delete",
+        passive_deletes=True,
+    )
+    
 
 #방 관리 테이블
 class Room_Management(Base,BaseMixin):
     __tablename__ = 'room'
 
-    room_id= Column(Integer,ForeignKey("room_list.id"))
+    room_id= Column(Integer,ForeignKey("room_list.id",ondelete="CASCADE"))
     temp= Column(Integer, index=True)
     humitiy= Column(Integer, index=True)
     finedust= Column(Integer, index=True)
     ledcolor= Column(String(length=255) ,index=True)
 
-    roomList  = relationship("RoomList", back_populates="room")
+    room_list = relationship("RoomList",back_populates="room")
+
 
 
 

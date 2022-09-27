@@ -1,3 +1,4 @@
+from turtle import end_fill
 from fastapi import FastAPI
 from requests import Session
 from fastapi.params import Depends
@@ -7,6 +8,7 @@ from consts import JWT_SECRET, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from datetime import datetime, timedelta
 from starlette.responses import JSONResponse
 from fastapi.security import APIKeyHeader
+from sqlalchemy import text, select
 
 import bcrypt
 import models, schemas
@@ -68,6 +70,21 @@ async def login(user_info: schemas.UserLogin, db:Session = Depends(get_db)):
     return token
 
 
+#방추가
+@app.post("/addRoom/{nickname}", response_model=schemas.RoomList)
+def add_room(nickname:str, entrada: schemas.RoomList, db:Session = Depends(get_db)):
+    db_user_id = db.query(models.User.id).filter_by(nickname=nickname).scalar_subquery()
+    new_room = models.RoomList.create(db, auto_commit=True,
+                                    user_id = db_user_id,
+                                    room_name = entrada.room_name)
+    
+    db.add(new_room)
+    db.flush()
+    db.commit()
+
+    return new_room
+
+
 def get_user_by_login_id(db: Session, login_id: str):
     return db.query(models.User).filter(models.User.login_id == login_id).first()
 
@@ -86,30 +103,20 @@ def create_access_token(*, data: dict, expires_delta: int = None):
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return encoded_jwt
 
-#방추가
-@app.post("/addRoom/", response_model=schemas.RoomList)
-def add_room(entrada: schemas.RoomList, db:Session = Depends(get_db)):
-    new_room = models.RoomList.create(db, auto_commit=True, 
-                                    user_id = entrada.user_id,
-                                    room_name = entrada.room_name)
-    
-    db.add(new_room)
-    db.commit()
-
-    return new_room
 
 
 # 특정방 찾기
 @app.get("/findRoom/",response_model=schemas.RoomList)
 def find_room(room_name:str,db:Session=Depends(get_db)):
     room = db.query(models.RoomList).filter_by(room_name=room_name).first()
-
+    
     return room
 
-# 특정방 삭제 /오류
-@app.delete('/deleteRoom/')
+
+# 특정방 삭제
+@app.delete('/deleteRoom/{room_name}')
 def delete_room(room_name:str, db: Session=Depends(get_db)):
-    room = db.query(models.RoomList).get(room_name==room_name)
+    room = db.query(models.RoomList).get(room_name)
 
     db.delete(room)
     db.commit()
@@ -118,11 +125,12 @@ def delete_room(room_name:str, db: Session=Depends(get_db)):
     return {'200 Successful Response'}
 
 
-#방 정보 생성 / 아니 왜 room_id랑 temp밖에 안나오냐고 시벌
-@app.post("/addRoomInfo/", response_model=schemas.Room_Info)
-def add_room(entrada: schemas.Room_Info, db:Session = Depends(get_db)):
+#방 정보 생성
+@app.post("/addRoomInfo/{room_name}", response_model=schemas.Room)
+def add_room(room_name:str, entrada: schemas.Room, db:Session = Depends(get_db)):
+    db_room_id = db.query(models.RoomList.id).filter_by(room_name=room_name).scalar_subquery()
     new_roomInfo = models.Room_Management.create(db, auto_commit=True, 
-                                    room_id = entrada.room_id,
+                                    room_id = db_room_id,
                                     temp = entrada.temp,
                                     humitiy= entrada.humitiy,
                                     finedust= entrada.finedust,
@@ -132,12 +140,20 @@ def add_room(entrada: schemas.Room_Info, db:Session = Depends(get_db)):
 
     return new_roomInfo
 
+# 방 상세정보
+@app.get("/findRoomInfo/",response_model=schemas.Room)
+def find_room(room_name:str,db:Session=Depends(get_db)):
+    db_room_id = db.query(models.RoomList.id).filter_by(room_name=room_name).scalar_subquery()
+    room_info = db.query(models.Room_Management).filter_by(room_id=db_room_id).first()
+    
+    return room_info
+
 
 if __name__  == '__main__':
     uvicorn.run(app="main:app", 
-                host="192.168.219.106", #203.250.133.171 192.168.219.106
+                host="192.168.219.106", #192.168.219.106 203.250.133.171
                 port=8000,
                 reload=True,
-                ssl_keyfile="C:\\Users\\gksek\\capstone\\fastapi\\app\\ssl\\key.pem",
-                ssl_certfile="C:\\Users\\gksek\\capstone\\fastapi\\app\\ssl\\cert.pem",
+                #ssl_keyfile="C:\\Users\\gksek\\capstone\\fastapi\\app\\ssl\\key.pem",
+                #ssl_certfile="C:\\Users\\gksek\\capstone\\fastapi\\app\\ssl\\cert.pem",
                 ) 

@@ -11,24 +11,26 @@ class User(BaseModel):
     class Config:
         orm_mode = True
 
-class Room_Info(BaseModel):
-    room_id: int
+class Room(BaseModel):
     temp: int
-    humitiy= int
-    finedust= int
-    ledcolor= str
+    humitiy: int
+    finedust: int
+    ledcolor: str
 
     class Config:
         orm_mode = True
-
 
 class RoomList(BaseModel):
     room_name:str
-    user_id:int
 
     class Config:
         orm_mode = True
 
+class nickname(BaseModel):
+    nickname:str
+
+    class Config:
+        orm_mode = True
 
 class UserLogin(BaseModel):
     login_id: str
