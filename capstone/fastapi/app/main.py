@@ -1,14 +1,11 @@
-from turtle import end_fill
 from fastapi import FastAPI
 from requests import Session
 from fastapi.params import Depends
 from typing import List
 from starlette.responses import RedirectResponse
-from consts import JWT_SECRET, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from consts import JWT_SECRET, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_MINUTES
 from datetime import datetime, timedelta
 from starlette.responses import JSONResponse
-from fastapi.security import APIKeyHeader
-from sqlalchemy import text, select
 
 import bcrypt
 import models, schemas
@@ -28,74 +25,64 @@ def get_db():
     finally:
         db.close()
 
-
 @app.get("/")
 def main():
-    return RedirectResponse(url="/docs/")
+    return RedirectResponse(url="/docs")
 
 
 #회원가입
-@app.post("/register/",status_code=200,response_model=schemas.Token)
-async def register(reg_info: schemas.User,db:Session = Depends(get_db)):
+@app.post("/register/{login_id}/{login_pw}/{nickname}/{name}/{email}/{phone}",status_code=200)
+async def register(login_id: str, login_pw:str, nickname: str, name: str, email:str, phone: str,db:Session = Depends(get_db)):
     """
     회원가입 API
     """
-    is_exist = await is_login_id_exist(reg_info.login_id,db) 
-    if not reg_info.login_id or not reg_info.login_pw:
+    id_exist = db.query(models.User.login_id).filter_by(login_id=login_id).first()
+    nickname_exist = db.query(models.User.nickname).filter_by(nickname=nickname).first()
+    name_exist = db.query(models.User.name).filter_by(name=name).first()
+    email_exist = db.query(models.User.email).filter_by(email=email).first()
+
+    if not login_id or not login_pw:
         return JSONResponse(status_code=400, content=dict(msg="id and pw must be provided"))
-    if not is_exist:
-        return JSONResponse(status_code=400,content=dict(msg="id already registered"))
+    if id_exist:
+        return JSONResponse(status_code=401,content=dict(msg="id already registered"))
+    if nickname_exist:
+        return JSONResponse(status_code=402,content=dict(msg="nickname already registered"))
+    if name_exist:
+        return JSONResponse(status_code=403,content=dict(msg="name already registered"))
+    if email_exist:
+        return JSONResponse(status_code=404,content=dict(msg="email already registered"))
     
-    hash_pw = bcrypt.hashpw(reg_info.login_pw.encode("utf-8"), bcrypt.gensalt())
-    new_user = models.User.create(db, auto_commit=True, login_pw=hash_pw, login_id=reg_info.login_id, nickname=reg_info.nickname, name=reg_info.name, email=reg_info.email,phone=reg_info.phone)
-    token = dict(Authorization=f"Bearer {create_access_token(data=reg_info.from_orm(new_user).dict(exclude={'login_pw'}),)}")
-    
-    return token
+    hash_pw = bcrypt.hashpw(login_pw.encode("utf-8"), bcrypt.gensalt())
+    models.User.create(db, auto_commit=True, login_pw=hash_pw, login_id=login_id, nickname=nickname, name=name, email=email,phone=phone)
+
+    return JSONResponse(status_code=200, content=dict(msg="success"))
+
+#로그인
+@app.get("/login/{login_id}/{login_pw}",status_code=200)
+async def login(login_id:str, login_pw:str, db:Session = Depends(get_db)):
+    is_exist = await is_login_id_exist(login_id,db)
+    db_user_info = db.query(models.User).filter_by(login_id=login_id).first() 
+  
+    is_verified = bcrypt.checkpw(login_pw.encode("utf-8"),db_user_info.login_pw.encode("utf-8"))
+
+    if is_exist == True and is_verified == True:
+        token = dict(Authorization=f"Bearer {create_access_token(data=schemas.UserToken.from_orm(db_user_info).dict(exclude={'login_pw'}),)}")
+        return True
+    else:
+        return False
 
 
-# 로그인
-@app.post("/login/",status_code=200,response_model=schemas.Token)
-async def login(user_info: schemas.UserLogin, db:Session = Depends(get_db)):
-    is_exist = await is_login_id_exist(user_info.login_id,db)
-    if not user_info.login_id or not user_info.login_pw:
-        return JSONResponse(status_code=400, content=dict(msg="ID and PW must be provided"))
-    if not is_exist:
-        return JSONResponse(status_code=400, content=dict(msg="NO_MATCH_USER"))
-    db_user_info: models.User = get_user_by_login_id(db, login_id=user_info.login_id)
-    is_verified = bcrypt.checkpw(user_info.login_pw.encode("utf-8"), db_user_info.login_pw.encode("utf-8"))
-    if not is_verified:
-            return JSONResponse(status_code=400, content=dict(msg="NO_MATCH_USER"))
-    token = dict(Authorization=f"Bearer {create_access_token(data=schemas.UserToken.from_orm(db_user_info).dict(exclude={'login_pw'}),)}")
-    
-    return token
 
-
-#방추가
-@app.post("/addRoom/{nickname}", response_model=schemas.RoomList)
-def add_room(nickname:str, entrada: schemas.RoomList, db:Session = Depends(get_db)):
-    db_user_id = db.query(models.User.id).filter_by(nickname=nickname).scalar_subquery()
-    new_room = models.RoomList.create(db, auto_commit=True,
-                                    user_id = db_user_id,
-                                    room_name = entrada.room_name)
-    
-    db.add(new_room)
-    db.flush()
-    db.commit()
-
-    return new_room
-
-
-def get_user_by_login_id(db: Session, login_id: str):
-    return db.query(models.User).filter(models.User.login_id == login_id).first()
-
-async def is_login_id_exist(login_id: str,db:Session = Depends(get_db)):
+async def is_login_id_exist(login_id_str: str,db:Session = Depends(get_db)):
     #같은 id가 있는지 확인하는 함수
-    get_login_id = db.query(models.User).filter_by(login_id=login_id)
+    get_login_id = db.query(models.User.login_id).filter_by(login_id=login_id_str).first()
     if get_login_id:
         return True
-    return False
+    else:
+        return False
 
-# token 생성
+
+# access token 생성
 def create_access_token(*, data: dict, expires_delta: int = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -104,31 +91,35 @@ def create_access_token(*, data: dict, expires_delta: int = None):
     return encoded_jwt
 
 
+def create_refresh_token(*, data: dict, expires_delta: int = None):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return encoded_jwt
+
 
 # 특정방 찾기
-@app.get("/findRoom/",response_model=schemas.RoomList)
-def find_room(room_name:str,db:Session=Depends(get_db)):
-    room = db.query(models.RoomList).filter_by(room_name=room_name).first()
-    
-    return room
-
-
-# 특정방 삭제
-@app.delete('/deleteRoom/{room_name}')
-def delete_room(room_name:str, db: Session=Depends(get_db)):
-    room = db.query(models.RoomList).get(room_name)
-
-    db.delete(room)
-    db.commit()
-    db.close()
-
-    return {'200 Successful Response'}
+@app.get("/findRoomInfo/{room_name}",status_code=200)
+async def find_room(room_name:str,db:Session=Depends(get_db)):
+    q = db.query(models.RoomList.id,
+                models.RoomList.created_at,
+                models.RoomList.room_name,
+                models.RoomList.user_id,
+                models.Room_Management.temp, 
+                models.Room_Management.humitiy, 
+                models.Room_Management.finedust, 
+                models.Room_Management.ledcolor). \
+            join(models.RoomList, models.RoomList.id == models.Room_Management.room_id). \
+            filter_by(room_name=room_name). \
+            order_by(models.RoomList.id).all()
+    return q
 
 
 #방 정보 생성
-@app.post("/addRoomInfo/{room_name}", response_model=schemas.Room)
+@app.post("/addRoomInfo/{room_name}",status_code=200 , response_model=schemas.Room)
 def add_room(room_name:str, entrada: schemas.Room, db:Session = Depends(get_db)):
-    db_room_id = db.query(models.RoomList.id).filter_by(room_name=room_name).scalar_subquery()
+    db_room_id = db.query(models.RoomList.id).filter_by(room_name=room_name)
     new_roomInfo = models.Room_Management.create(db, auto_commit=True, 
                                     room_id = db_room_id,
                                     temp = entrada.temp,
@@ -140,13 +131,93 @@ def add_room(room_name:str, entrada: schemas.Room, db:Session = Depends(get_db))
 
     return new_roomInfo
 
-# 방 상세정보
-@app.get("/findRoomInfo/",response_model=schemas.Room)
-def find_room(room_name:str,db:Session=Depends(get_db)):
-    db_room_id = db.query(models.RoomList.id).filter_by(room_name=room_name).scalar_subquery()
+
+# id에 해당하는 방 목록
+@app.get("/findRoom/{login_id}",status_code=200)
+def find_room(login_id:str,db:Session=Depends(get_db)):
+    db_user_id = db.query(models.User.id).filter_by(login_id=login_id).scalar_subquery()
+    print(db_user_id)
+    room = db.query(models.RoomList.room_name).filter_by(user_id=db_user_id).all()
+    print(room)
+
+    return room
+
+
+# 모든 방에 대한 정보
+@app.get("/allRoomInfo",status_code=200)
+async def all_room(db:Session=Depends(get_db)):
+    q = db.query(models.RoomList.id,
+                models.RoomList.created_at,
+                models.RoomList.room_name,
+                models.RoomList.user_id,
+                models.Room_Management.temp, 
+                models.Room_Management.humitiy, 
+                models.Room_Management.finedust, 
+                models.Room_Management.ledcolor). \
+            join(models.Room_Management, models.RoomList.id == models.Room_Management.room_id). \
+            order_by(models.RoomList.id).all()
+    return q
+
+# 방 이름 수정 
+@app.put("/update_roomName/{old_room_name}/{new_room_name}",status_code=200)
+async def update_room(old_room_name:str, new_room_name:str, db:Session=Depends(get_db)):
+    room_name_update=db.query(models.RoomList).filter(models.RoomList.room_name==old_room_name)
+    if not room_name_update:
+        return JSONResponse(status_code=400,content=dict(msg="room is not exist"))
+    room_name_update.update({'room_name':new_room_name})
+    print(room_name_update)
+    db.commit()
+   
+    return {'success'}
+
+
+# 방은 그대로 두고 방에 대한 상세정보 삭제
+@app.delete("/delete_room/{room_name}",status_code=200)
+async def delete_room(room_name:str, db:Session=Depends(get_db)):
+    room_id=db.query(models.RoomList.id).filter_by(room_name=room_name).scalar_subquery()
+    id = db.query(models.Room_Management.id).filter_by(room_id=room_id).first()
+    room_info_delete = db.query(models.Room_Management).get(id)
+    if not room_info_delete:
+        return JSONResponse(status_code=400,content=dict(msg="room is not exist"))
+    db.delete(room_info_delete)
+    db.commit()
+    db.close()
+
+    return {'success'}
+
+
+
+# 안드로이드
+
+
+#홈화면
+@app.get("/home/{login_id}",response_model=schemas.Room) #방이름도 입력받아야함 / 제일 최근 정보로 나타내야 함 -> 수정
+def home_info(login_id:str, db:Session=Depends(get_db)):
+    db_user_id = db.query(models.User.id).filter_by(login_id=login_id).scalar_subquery()
+    db_room_id = db.query(models.RoomList.id).filter_by(user_id=db_user_id,room_name="tt").scalar_subquery()
     room_info = db.query(models.Room_Management).filter_by(room_id=db_room_id).first()
-    
+
     return room_info
+
+#통계 화면
+@app.get("/stat/{login_id}/{room_name}/{startdate}/{enddate}")
+def stat_info(login_id:str,room_name:str,startdate:str,enddate:str,db:Session=Depends(get_db)):
+    db_user_id = db.query(models.User.id).filter_by(login_id=login_id).scalar_subquery()
+
+    q = db.query(models.RoomList.id,
+                models.RoomList.user_id,
+                models.RoomList.room_name,
+                models.Room_Management.created_at,
+                models.Room_Management.temp, 
+                models.Room_Management.humitiy, 
+                models.Room_Management.finedust, 
+                models.Room_Management.ledcolor). \
+            join(models.RoomList, models.RoomList.id == models.Room_Management.room_id). \
+            filter_by(user_id=db_user_id, room_name = room_name). \
+            filter(startdate < models.Room_Management.created_at, models.Room_Management.created_at < enddate).all()
+            
+    return q
+
 
 
 if __name__  == '__main__':
@@ -154,6 +225,6 @@ if __name__  == '__main__':
                 host="192.168.219.106", #192.168.219.106 203.250.133.171
                 port=8000,
                 reload=True,
-                #ssl_keyfile="C:\\Users\\gksek\\capstone\\fastapi\\app\\ssl\\key.pem",
-                #ssl_certfile="C:\\Users\\gksek\\capstone\\fastapi\\app\\ssl\\cert.pem",
+                ssl_keyfile="C:\\Users\\gksek\\capstone\\fastapi\\app\\ssl\\key.pem",
+                ssl_certfile="C:\\Users\\gksek\\capstone\\fastapi\\app\\ssl\\cert.pem",
                 ) 

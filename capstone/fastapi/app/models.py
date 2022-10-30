@@ -46,8 +46,6 @@ class BaseMixin:
             db.commit()
         return obj
 
-
-
 # 사용자 정보 테이블
 class User(Base,BaseMixin):
     __tablename__ = 'users'
@@ -58,12 +56,28 @@ class User(Base,BaseMixin):
     email= Column(String(length=255),index=True,unique=True) # 이메일
     phone= Column(String(length=255),unique=True, index=True) # 전화번호
 
+    token = relationship(
+        "Token",
+        back_populates="user",
+        cascade="all, delete",
+        passive_deletes=True,
+    )
+
+
     list = relationship(
         "RoomList",
         back_populates="users",
         cascade="all, delete",
         passive_deletes=True,
     )
+
+class Token(Base, BaseMixin):
+    __tablename__ = 'token'
+
+    user_id = Column(Integer,ForeignKey("users.id",ondelete="CASCADE"))
+    access_token = Column(String(length=255),unique=True,index=True)
+    
+    user = relationship("User",back_populates="token")
     
 
 # 방 목록 테이블

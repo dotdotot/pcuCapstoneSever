@@ -1,3 +1,4 @@
+from xmlrpc.client import DateTime
 from pydantic import BaseModel, EmailStr
 
 class User(BaseModel):
@@ -11,6 +12,13 @@ class User(BaseModel):
     class Config:
         orm_mode = True
 
+class statRoom(BaseModel):
+    created_at: str
+    temp: int
+    humitiy: int
+    finedust: int
+    ledcolor: str
+
 class Room(BaseModel):
     temp: int
     humitiy: int
@@ -20,17 +28,6 @@ class Room(BaseModel):
     class Config:
         orm_mode = True
 
-class RoomList(BaseModel):
-    room_name:str
-
-    class Config:
-        orm_mode = True
-
-class nickname(BaseModel):
-    nickname:str
-
-    class Config:
-        orm_mode = True
 
 class UserLogin(BaseModel):
     login_id: str

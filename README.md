@@ -4,82 +4,90 @@
 2. FastAPI를 HTTPS로 띄우기 
 3. 사용자와 온도, 습도, 미세먼지 등의 방에 대한 정보를 저장하기 위한 데이터베이스 설계 및 구축
 
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-##1 FastAPI 구축
-###프레임워크와  ASGI서버 설치
+-------------------------------------------------------------------------------------------------
+## FastAPI 구축
+### 프레임워크와  ASGI서버 설치
 ```c
 $ pip install fastapi
 $ pip install uvicorn
 ```
 
-###get, post, delete를 이용하여 웹과 앱에서 접속할 메소드 추가
+## WEB
+-------------------------------------------------------------------------------------------------
 
-###회원가입과 로그인
+* register(post)
+>사용자에게 login_id, login_pw, nickname, name, email, phone을 json header에서 입력받아 db에 저장(login_pw는 암호화)login_id, nickname, name, email이 존재하는지 확인하고 만약 존재한다면 각각 401,402,403,404 상태코드와 메세지를 함께 리턴
 ```c
-#회원가입
-@app.post("/register/",status_code=200,response_model=schemas.Token)
-async def register(reg_info: schemas.User,db:Session = Depends(get_db)):
-    """
-    회원가입 API
-    """
-    is_exist = await is_login_id_exist(reg_info.login_id,db) 
-    if not reg_info.login_id or not reg_info.login_pw:
-        return JSONResponse(status_code=400, content=dict(msg="id and pw must be provided"))
-    if not is_exist:
-        return JSONResponse(status_code=400,content=dict(msg="id already registered"))
-    
-    hash_pw = bcrypt.hashpw(reg_info.login_pw.encode("utf-8"), bcrypt.gensalt())
-    new_user = models.User.create(db, auto_commit=True, login_pw=hash_pw, login_id=reg_info.login_id, nickname=reg_info.nickname, name=reg_info.name, email=reg_info.email,phone=reg_info.phone)
-    token = dict(Authorization=f"Bearer {create_access_token(data=reg_info.from_orm(new_user).dict(exclude={'login_pw'}),)}")
-    
-    return token
+@app.post("/register/{login_id}/{login_pw}/{nickname}/{name}/{email}/{phone}",status_code=200)
+```
 
 
-# 로그인
+* login(get)
+>사용자에게 login_id와 login_pw를 json body로 입력받고 아이디가 존재하는지 확인, 비밀번호를 인코딩하고 동일한지 확인하고 동일하다면 true 메세지 리턴 
+```c
 @app.post("/login/",status_code=200,response_model=schemas.Token)
-async def login(user_info: schemas.UserLogin, db:Session = Depends(get_db)):
-    is_exist = await is_login_id_exist(user_info.login_id,db)
-    if not user_info.login_id or not user_info.login_pw:
-        return JSONResponse(status_code=400, content=dict(msg="ID and PW must be provided"))
-    if not is_exist:
-        return JSONResponse(status_code=400, content=dict(msg="NO_MATCH_USER"))
-    db_user_info: models.User = get_user_by_login_id(db, login_id=user_info.login_id)
-    is_verified = bcrypt.checkpw(user_info.login_pw.encode("utf-8"), db_user_info.login_pw.encode("utf-8"))
-    if not is_verified:
-            return JSONResponse(status_code=400, content=dict(msg="NO_MATCH_USER"))
-    token = dict(Authorization=f"Bearer {create_access_token(data=schemas.UserToken.from_orm(db_user_info).dict(exclude={'login_pw'}),)}")
-    
-    return token
 ```
 
-###방생성과 특정방찾기
+* findRoomInfo(get)
+>사용자에게 room_name을 json header에서 입력받아 해당 방의 모든 정보를 json body에 감싸서 리턴
 ```c
-#방추가
-@app.post("/addRoom/", response_model=schemas.RoomList)
-def add_room(entrada: schemas.RoomList, db:Session = Depends(get_db)):
-    new_room = models.RoomList.create(db, auto_commit=True, 
-                                    user_id = entrada.user_id,
-                                    room_name = entrada.room_name)
-    
-    db.add(new_room)
-    db.commit()
-
-    return new_room
-
-
-# 특정방 찾기
-@app.get("/findRoom/",response_model=schemas.RoomList)
-def find_room(room_name:str,db:Session=Depends(get_db)):
-    room = db.query(models.RoomList).filter_by(room_name=room_name).first()
-
-    return room
-
+@app.get("/findRoom/{room_name}",status_code=200)
 ```
-### 데이터베이스 연결
-###create_engine으 인자값으로 DB URL을 추가하여 DB Host에 DB연결을 생성
-![DB연결](https://user-images.githubusercontent.com/69308065/190901977-0b603d62-3898-4a67-8cbf-99052331f770.png)
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-##2 HTTPS로 띄우기
+
+* addRoonInfo(post)
+>사용자에게 room_name을 json header에서 입력받고 temp, humitiy, finedust, ledcolor을 json body로 입력받아 db에 저장
+```c
+@app.post("/addRoomInfo/{room_name}",status_code=200 , response_model=schemas.Room)
+```
+
+* findRoom(get)
+>사용자에게 login_id를 json header에서 입력받아 해당 아이디의 방 목록을 json body에 감싸 리턴
+```c
+@app.get("/findRoom/{login_id}",status_code=200)
+```
+
+* allRoomInfo(get)
+>지금 존재하는 모든 방에 대한 정보를 json body에 감싸 리턴
+```c
+@app.get("/allRoomInfo",status_code=200)
+```
+
+* update_roomName(put)
+>사용자에게 old_room_name, new_room_name을 json header에서 입력받음
+>방이 존재하지 않다면 400상태코드와 메세지 리턴
+>방이 존재하면 입력받은 새 방이름으로 업데이트하고 'success'메세지 리턴
+```c
+@app.put("/update/{old_room_name}/{new_room_name}",status_code=200)
+```
+
+* delete_room(delete)
+>사용자에게 room_name을 json header로 입력받음
+>방이 존재하지 않다면 400상태코드와 메세지 리턴
+>방이 존재한다면 해당 방의 모든 정보를 삭제
+```c
+@app.delete("/delete_room/{room_name}",status_code=200)
+```
+
+## ANDROID
+-------------------------------------------------------------------------------------------------
+* register(post) - 웹과 동일
+* login(get) - 웹과 동일
+* home(get)
+>사용자에게 login_id와 room_name을 json header로 입력받음
+>입력받은 아이디의 해당 방의 제일 최근 정보를 리턴
+>(수정 필요)
+```c
+@app.get("/home/{login_id}",response_model=schemas.Room)
+```
+
+* stat(get)
+>사용자에게 login_id, room_name, startdate, enddate를 json header로 입력받음
+>입력받은 아이디의 해당 방의 시작날짜와 종료날짜 사이의 모든 정보를 리턴 
+```c
+@app.get("/stat/{login_id}/{room_name}/{startdate}/{enddate}")
+```
+-------------------------------------------------------------------------------------------------
+## HTTPS로 띄우기
 
 ```c
 choco install mkcert
@@ -96,8 +104,11 @@ mkcert 서버 주소 ::1
 ### 서버가 HTTPS로 잘 띄워지는 것을 확인
 ![https](https://user-images.githubusercontent.com/69308065/190902574-cedee794-d1ae-4dfe-a406-0cdcef4bbd4d.png)
 
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-##3 데이터베이스 설계
+-------------------------------------------------------------------------------------------------
+## 데이터베이스 연결
+create_engine의 인자값으로 DB URL을 추가하여 DB Host에 DB연결을 생성
+![DB연결](https://user-images.githubusercontent.com/69308065/190901977-0b603d62-3898-4a67-8cbf-99052331f770.png)
+## 데이터베이스 설계
 ![테이블1](https://user-images.githubusercontent.com/69308065/190901303-4bc9d66b-5dc8-49b1-8a2d-1de9e5483511.png)
 
 
