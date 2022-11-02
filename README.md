@@ -16,14 +16,14 @@ $ pip install uvicorn
 ## WEB
 
 * register(post)
->사용자에게 login_id, login_pw, nickname, name, email, phone을 json header에서 입력받아 db에 저장(login_pw는 암호화)login_id, nickname, name, email이 존재하는지 확인하고 만약 존재한다면 각각 401,402,403,404 상태코드와 메세지를 함께 리턴
+>사용자에게 login_id, login_pw, nickname, name, email, phone을 json header에서 입력받아 db에 저장(login_pw는 암호화)login_id, nickname, name, email이 존재하는지 확인하고 만약 존재한다면 {"result":"FALSE"}메세지 출력 회원가입에 성공하면 {"result":"TRUE"} 출력
 ```c
 @app.post("/register/{login_id}/{login_pw}/{nickname}/{name}/{email}/{phone}",status_code=200)
 ```
 
 
 * login(get)
->사용자에게 login_id와 login_pw를 json body로 입력받고 아이디가 존재하는지 확인, 비밀번호를 인코딩하고 동일한지 확인하고 동일하다면 true 메세지 리턴 
+>사용자에게 login_id와 login_pw를 json body로 입력받고 아이디가 존재하는지 확인, 비밀번호를 인코딩하고 동일한지 확인하고 동일하다면 {"result":"TRUE"} 메세지 리턴 
 ```c
 @app.post("/login/",status_code=200,response_model=schemas.Token)
 ```
@@ -32,12 +32,6 @@ $ pip install uvicorn
 >사용자에게 room_name을 json header에서 입력받아 해당 방의 모든 정보를 json body에 감싸서 리턴
 ```c
 @app.get("/findRoom/{room_name}",status_code=200)
-```
-
-* addRoonInfo(post)
->사용자에게 room_name을 json header에서 입력받고 temp, humitiy, finedust, ledcolor을 json body로 입력받아 db에 저장
-```c
-@app.post("/addRoomInfo/{room_name}",status_code=200 , response_model=schemas.Room)
 ```
 
 * findRoom(get)
@@ -54,18 +48,25 @@ $ pip install uvicorn
 
 * update_roomName(put)
 >사용자에게 old_room_name, new_room_name을 json header에서 입력받음
->방이 존재하지 않다면 400상태코드와 메세지 리턴
->방이 존재하면 입력받은 새 방이름으로 업데이트하고 'success'메세지 리턴
+>방이 존재하지 않다면 {"result":"FALSE"} 메세지 리턴
+>방이 존재하면 입력받은 새 방이름으로 업데이트하고 {"result":"TRUE"} 메세지 리턴
 ```c
 @app.put("/update/{old_room_name}/{new_room_name}",status_code=200)
 ```
 
 * delete_room(delete)
 >사용자에게 room_name을 json header로 입력받음
->방이 존재하지 않다면 400상태코드와 메세지 리턴
->방이 존재한다면 해당 방의 모든 정보를 삭제
+>방이 존재하지 않다면 {"result":"FALSE"} 메세지 리턴
+>방이 존재한다면 해당 방의 모든 정보를 삭제 {"result":"TRUE"} 메세지 리턴
 ```c
 @app.delete("/delete_room/{room_name}",status_code=200)
+```
+
+* stat_web(get)
+>login_id, room_name, start, amount을 json header로 입력받음
+>room테이블의 created_at을 내림차순으로 정렬해서 start-1부터 amount개의 데이터 리턴
+```c
+@app.get("/stat_web/{login_id}/{room_name}/{start}/{amount}",status_code=200)
 ```
 
 ## ANDROID
@@ -78,14 +79,21 @@ $ pip install uvicorn
 >입력받은 아이디의 현재 위치의 가장 최근 정보를 리턴(하드웨어 연결 후 수정)
 >(수정 필요)
 ```c
-@app.get("/home/{login_id}",response_model=schemas.Room)
+@app.get("/home/{login_id}",response_model=schemas.Room,status_code=200)
 ```
 
 * stat(get)
 >사용자에게 login_id, room_name, startdate, enddate를 json header로 입력받음
 >입력받은 아이디의 해당 방의 시작날짜와 종료날짜 사이의 모든 정보를 리턴 
 ```c
-@app.get("/stat/{login_id}/{room_name}/{startdate}/{enddate}")
+@app.get("/stat/{login_id}/{room_name}/{startdate}/{enddate}",status_code=200)
+```
+
+## HARDWARE
+* addRoonInfo(post) - 이걸 기반으로 하드웨어 완료되면 작성
+>사용자에게 room_name을 json header에서 입력받고 temp, humitiy, finedust, ledcolor을 json body로 입력받아 db에 저장
+```c
+@app.post("/addRoomInfo/{room_name}",status_code=200 , response_model=schemas.Room)
 ```
 -------------------------------------------------------------------------------------------------
 ## HTTPS로 띄우기
@@ -117,7 +125,7 @@ create_engine의 인자값으로 DB URL을 추가하여 DB Host에 DB연결을 �
 >요청변수 : servicekey(공공데이터포털에서 받은 인증키), queay(IP 주소 또는 AS 번호), answer(응답형식(XML/JSON) 을 지정(없으면 XML으로 응답))
 >응답을 json형태로 받아 파싱하여 사용자 IP의 국가코드를 알아냄
 >국가코드가 KR일때만 모든 메서드 접속허용
->(문제점: 고정 IP주소가 아니면 국가코드를 식별할 수 없음)
+>(문제점: 고정 IP주소가 아니면 국가코드를 식별할 수 없음, api에 직접 부착하는 방법 알아보는 중)
 ```c
  URL = 'http://apis.data.go.kr/B551505/whois/ipas_country_code?serviceKey='+ key + '&query='+ IP +'&answer=json'
 json_page = urllib.request.urlopen(URL)
@@ -125,5 +133,6 @@ json_data = json_page.read().decode("utf-8")
 json_array = json.loads(json_data)
 contrycode = json_array.get("response").get("whois").get("countryCode")
 ```
+
  
 
