@@ -108,8 +108,8 @@ choco install mkcert
 mkcert -install
 mkcert 서버 주소 ::1
 ```
-###발급한 인증서는  "localhost+2.pem"에 있고 키는 "localhost+2-key.pem"에 있다
-###파일들을 보기 쉽게 각각 'cert.pem'과 key.pem'으로 바꾸어 저장한다
+### 발급한 인증서는  "localhost+2.pem"에 있고 키는 "localhost+2-key.pem"에 있다
+### 파일들을 보기 쉽게 각각 'cert.pem'과 key.pem'으로 바꾸어 저장한다
 ![ssl](https://user-images.githubusercontent.com/69308065/190902416-cde706f9-e9ee-4727-8147-63090880a5fc.png)
 
 ### Uvicron에 파일들의 위치를 알려주고 실행
