@@ -2,10 +2,9 @@
 from enum import unique
 from operator import index
 from pymysql import Timestamp
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, SmallInteger, String, column, func, DateTime
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, func, DateTime, Enum
 from sqlalchemy.orm import relationship
 from db import Base
-from enum import Enum
 
 from tkinter import CASCADE
 from sqlalchemy.orm import Session
@@ -75,7 +74,7 @@ class Token(Base, BaseMixin):
     __tablename__ = 'token'
 
     user_id = Column(Integer,ForeignKey("users.id",ondelete="CASCADE"))
-    access_token = Column(String(length=255),unique=True,index=True)
+    access_token = Column(String,unique=True,index=True)
     
     user = relationship("User",back_populates="token")
     
@@ -94,6 +93,12 @@ class RoomList(Base,BaseMixin):
         cascade="all, delete",
         passive_deletes=True,
     )
+    move = relationship(
+        "Move",
+        back_populates="room_list",
+        cascade="all, delete",
+        passive_deletes=True,
+    )
     
 
 #방 관리 테이블
@@ -108,6 +113,15 @@ class Room_Management(Base,BaseMixin):
 
     room_list = relationship("RoomList",back_populates="room")
 
+# 이동 테이블
+class Move(Base, BaseMixin):
+    __tablename__ = 'move'
+
+    room_id = Column(Integer,ForeignKey("room_list.id",ondelete="CASCADE"))
+    move_selected = Column(String(length=255), Enum("auto","time","random"),index=True)
+    move_set = Column(String(length=255),nullable=True)
+
+    room_list= relationship("RoomList",back_populates="move")
 
 
 

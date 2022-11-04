@@ -1,15 +1,12 @@
 from fastapi import FastAPI, Request
 from requests import Session
 from fastapi.params import Depends
-from typing import List
 from starlette.responses import RedirectResponse
 from consts import JWT_SECRET, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_MINUTES
 from datetime import datetime, timedelta
 from starlette.responses import JSONResponse
 from sqlalchemy import desc
 
-import json
-import urllib.request
 import bcrypt
 import models, schemas
 import uvicorn
@@ -27,19 +24,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-#IP주소 국가코드가 KR이면 True
-def IP(request: Request):
-    IP = request.client.host
-    key = 'B1gJBJxC7p%2F%2BN9qGjgKEi%2FU6LePtHCPxltLYo7I7%2B2%2FIu1Jei5VYqg%2B8MIwp2BWODMsoOe7hc9th8kW5A4aZew%3D%3D'
-    URL = 'http://apis.data.go.kr/B551505/whois/ipas_country_code?serviceKey='+ key + '&query='+ IP +'&answer=json'
-    json_page = urllib.request.urlopen(URL)
-    json_data = json_page.read().decode("utf-8")
-    json_array = json.loads(json_data)
-    contrycode = json_array.get("response").get("whois").get("countryCode")
-    if contrycode == "KR":
-        return True
-
 
 @app.get("/")
 def main():
@@ -92,6 +76,7 @@ async def login(login_id:str, login_pw:str, db:Session = Depends(get_db)):
 
     if is_exist == True and is_verified == True: 
         token = dict(Authorization=f"Bearer {create_access_token(data=schemas.UserToken.from_orm(db_user_info).dict(exclude={'login_pw'}),)}")
+        #models.Token.create(db,auto_commit=True,user_id = db_user_info.id,access_token = token)
         return {"result":"TRUE"}
     elif is_verified == False or is_exist == False:
         return {"result":"FALSE"}
@@ -253,6 +238,20 @@ def stat_info(login_id:str,room_name:str,startdate:str,enddate:str,db:Session=De
             filter(startdate < models.Room_Management.created_at, models.Room_Management.created_at < enddate).all()
             
     return {"result":q}
+
+
+# 이동화면
+@app.post("/move/{login_id}/{move_select}/{move_set}/{room_name}",status_code=200)
+async def register(login_id: str, move_select:str, move_set:str, room_name: str,db:Session = Depends(get_db)):
+    id_exist = db.query(models.User.login_id).filter_by(login_id=login_id).first()
+    room_exist = db.query(models.RoomList.room_name).filter_by(room_name=room_name).first()
+    db_room_id = db.query(models.RoomList.id).filter_by(room_name=room_name)
+    
+    if not id_exist or not room_exist:
+        return {"result":"FALSE"}
+    else:
+        models.Move.create(db,auto_commit=True,room_id =db_room_id,move_select=move_select,move_set=move_set)
+        return {"result":"TRUE"}
 
 
 

@@ -4,7 +4,7 @@
 2. FastAPI를 HTTPS로 띄우기 
 3. 사용자와 온도, 습도, 미세먼지 등의 방에 대한 정보를 저장하기 위한 
 4. 데이터베이스 설계 및 구축
-5. 해외IP차단(openAPI 사용)
+5. 해외IP차단
 -------------------------------------------------------------------------------------------------
 ## FastAPI 구축
 ### 프레임워크와  ASGI서버 설치
@@ -89,6 +89,11 @@ $ pip install uvicorn
 @app.get("/stat/{login_id}/{room_name}/{startdate}/{enddate}",status_code=200)
 ```
 
+* move(post)
+>사용자에게 login_id, move_select, move_set, room_name을 json header로 입력받음
+>login_id와 room_name이 존재하는지 확인하고 존재하지 않으면 {"result":"FALSE"}
+>존재하면 db에 저장
+
 ## HARDWARE
 * addRoonInfo(post) - 이걸 기반으로 하드웨어 완료되면 작성
 >사용자에게 room_name을 json header에서 입력받고 temp, humitiy, finedust, ledcolor을 json body로 입력받아 db에 저장
@@ -120,19 +125,80 @@ create_engine의 인자값으로 DB URL을 추가하여 DB Host에 DB연결을 �
 ## 데이터베이스 설계
 ![테이블1](https://user-images.githubusercontent.com/69308065/190901303-4bc9d66b-5dc8-49b1-8a2d-1de9e5483511.png)
 
-## OpenAPI사용해서 해외IP차단
+## 해외IP차단
+* OpenAPI사용
 >WHOIS OpenAPI활용
 >요청변수 : servicekey(공공데이터포털에서 받은 인증키), queay(IP 주소 또는 AS 번호), answer(응답형식(XML/JSON) 을 지정(없으면 XML으로 응답))
 >응답을 json형태로 받아 파싱하여 사용자 IP의 국가코드를 알아냄
 >국가코드가 KR일때만 모든 메서드 접속허용
 >(문제점: 고정 IP주소가 아니면 국가코드를 식별할 수 없음, api에 직접 부착하는 방법 알아보는 중)
 ```c
+import json
+import urllib.request
+
  URL = 'http://apis.data.go.kr/B551505/whois/ipas_country_code?serviceKey='+ key + '&query='+ IP +'&answer=json'
 json_page = urllib.request.urlopen(URL)
 json_data = json_page.read().decode("utf-8")
 json_array = json.loads(json_data)
 contrycode = json_array.get("response").get("whois").get("countryCode")
 ```
+* 윈도우 방화벽 사용
+>국가별 IP목록이 있는 파일을 받아서 파워쉘 스크립트를 작성\
+> Windows Powershell을 관리자 권한으로 실행하여 .\GeoIPCountryWhois.ps1 실행 (스크립트 오류 시 Set-ExecutionPolicy Unrestricted 명령 실행)
+```C
+#############Config#################
+$countryCode="KR" #차단을 하지 않을 나라의 CountryCode
+$geoIPcsvPath="\GeoIPCountryWhois.csv"
+#$geoIPcsvPath="\\GeoIPCountryWhois.csv" #ISE에서 실행시 찾지 못함.
+$ruleName="allowCountry"
+$allowPort="3389,1433"
+#############Config#################
 
+$geoData=Import-Csv $geoIPcsvPath -header sIP, eIP, cc |  where-object {$_.cc –eq $countryCode} 
+$geoDataTotal=$geoData.Count
+$remoteIP=""
+
+
+######  룰이 있는 지 체크 ########
+function ruleExistsChk ($ruleName)
+{
+    $fw=New-object -comObject HNetCfg.FwPolicy2; # http://blogs.technet.com/b/jamesone/archive/2009/02/18/how-to-manage-the-windows-firewall-settings-with-powershell.aspx 
+    $RuleCHK=$fw.rules | where-object {$_.name –eq $ruleName}
+    if(!$RuleCHK){
+    #$deny_rule_name + " 룰이 생성되어 있지 않습니다."; exit; 
+    #허용하는 룰 생성.
+    netsh advfirewall firewall add rule name="$ruleName" localport="$allowPort" protocol=TCP localip=any dir=in action=allow profile="any" interfacetype="any"
+    }
+}
+
+######  룰이 있는 지 체크 ########
+$count=1
+foreach ($geoIP in $geoData)
+{
+    #$remoteIP+=@($geoIP.sIP+"-"+$geoIP.eIP+",") #배열로 저장.
+     $remoteIP+=$geoIP.sIP+"-"+$geoIP.eIP+","
+     try {
+         #remoteAddr가 한개의 룰에 약 300개 이상이면 등록이 안됨. 안전하게 200으로 설정.
+        if(($count%200) -eq 0)
+        {
+            $makeRuleName=$ruleName+$countryCode+$count
+            ruleExistsChk($makeRuleName)
+            netsh advfirewall firewall set rule name=$makeRuleName new remoteip="$remoteIP"
+            $remoteIP=""
+        }elseif($geoDataTotal -eq $count){
+            $makeRuleName=$ruleName+$countryCode+$count
+            ruleExistsChk($makeRuleName)
+            netsh advfirewall firewall set rule name=$makeRuleName new remoteip="$remoteIP"
+            $remoteIP=""
+        }
+    }catch {
+      Write-Warning "Error occured: $_"
+    }
+     $count++
+}
+```
+[참고 사이트]
+https://lifestream.kr/90
+https://ihosting.tistory.com/7
  
 
