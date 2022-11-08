@@ -15,13 +15,13 @@ class User(BaseModel):
 class statRoom(BaseModel):
     created_at: str
     temp: int
-    humitiy: int
+    humidity: int
     finedust: int
     ledcolor: str
 
 class Room(BaseModel):
     temp: int
-    humitiy: int
+    humidity: int
     finedust: int
     ledcolor: str
 

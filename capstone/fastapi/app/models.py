@@ -107,7 +107,7 @@ class Room_Management(Base,BaseMixin):
 
     room_id= Column(Integer,ForeignKey("room_list.id",ondelete="CASCADE"))
     temp= Column(Integer, index=True)
-    humitiy= Column(Integer, index=True)
+    humidity= Column(Integer, index=True)
     finedust= Column(Integer, index=True)
     ledcolor= Column(String(length=255) ,index=True)
 

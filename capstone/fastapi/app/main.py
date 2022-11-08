@@ -111,6 +111,18 @@ def create_refresh_token(*, data: dict, expires_delta: int = None):
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return encoded_jwt
 
+# 회원 정보를 보여주기 위한 기능
+@app.get("/userInfo/{login_id}",status_code=200)
+async def user_info(login_id:str,db:Session=Depends(get_db)):
+    q = db.query(models.User.id,
+                models.User.created_at,
+                models.User.name,
+                models.User.login_id,
+                models.User.nickname,
+                models.User.email,). \
+            filter_by(login_id=login_id).all()
+
+    return q
 
 # 특정방 찾기
 @app.get("/findRoomInfo/{room_name}",status_code=200)
@@ -120,7 +132,7 @@ async def find_room(room_name:str,db:Session=Depends(get_db)):
                 models.RoomList.room_name,
                 models.RoomList.user_id,
                 models.Room_Management.temp, 
-                models.Room_Management.humitiy, 
+                models.Room_Management.humidity, 
                 models.Room_Management.finedust, 
                 models.Room_Management.ledcolor). \
             join(models.RoomList, models.RoomList.id == models.Room_Management.room_id). \
@@ -136,7 +148,7 @@ def add_room(room_name:str, entrada: schemas.Room, db:Session = Depends(get_db))
     new_roomInfo = models.Room_Management.create(db, auto_commit=True, 
                                     room_id = db_room_id,
                                     temp = entrada.temp,
-                                    humitiy= entrada.humitiy,
+                                    humidity= entrada.humidity,
                                     finedust= entrada.finedust,
                                     ledcolor= entrada.ledcolor)
     db.add(new_roomInfo)
@@ -158,12 +170,12 @@ def find_room(login_id:str,request: Request,db:Session=Depends(get_db)):
 # 모든 방에 대한 정보
 @app.get("/allRoomInfo",status_code=200)
 async def all_room(db:Session=Depends(get_db)):
-    q = db.query(models.RoomList.id,
-                models.RoomList.created_at,
-                models.RoomList.room_name,
-                models.RoomList.user_id,
+    q = db.query(models.RoomList.id, 
+                models.RoomList.created_at, 
+                models.RoomList.room_name, 
+                models.RoomList.user_id, 
                 models.Room_Management.temp, 
-                models.Room_Management.humitiy, 
+                models.Room_Management.humidity, 
                 models.Room_Management.finedust, 
                 models.Room_Management.ledcolor). \
             join(models.Room_Management, models.RoomList.id == models.Room_Management.room_id). \
@@ -173,13 +185,15 @@ async def all_room(db:Session=Depends(get_db)):
 # 방 이름 수정 
 @app.put("/update_roomName/{old_room_name}/{new_room_name}",status_code=200)
 async def update_room(old_room_name:str, new_room_name:str, db:Session=Depends(get_db)):
-    room_name_update=db.query(models.RoomList).filter(models.RoomList.room_name==old_room_name)
-    if not room_name_update:
-        return {"result":"FALSE"}
-    room_name_update.update({'room_name':new_room_name})
+    room_exist = db.query(models.RoomList.room_name).filter_by(room_name=old_room_name).first()
+    
+    if room_exist:
+        db.query(models.RoomList).filter(models.RoomList.room_name==old_room_name). \
+                        update({'room_name':new_room_name})
+        return {"result":"TRUE"}
     db.commit()
    
-    return {"result":"TRUE"}
+    return {"result":"FALSE"}
 
 
 # 방은 그대로 두고 방에 대한 상세정보 삭제
@@ -197,16 +211,97 @@ async def delete_room(room_name:str, db:Session=Depends(get_db)):
     return {"result":"TRUE"}
 
 # 웹 통계
-@app.get("/stat_web/{login_id}/{room_name}/{start}/{amount}",status_code=200)
-def stat_info(login_id:str,room_name:str,start:int,amount:int,db:Session=Depends(get_db)):
-    db_user_id = db.query(models.User.id).filter_by(login_id=login_id).scalar_subquery()
-
-    q = db.query(models.Room_Management.temp, 
-                models.Room_Management.humitiy, 
-                models.Room_Management.finedust). \
+@app.get("/stat_web/{room_name}/{start}/{amount}",status_code=200)
+def stat_info(room_name:str,start:int,amount:int,db:Session=Depends(get_db)):
+    q = db.query(models.RoomList.id, 
+                models.RoomList.room_name, 
+                models.RoomList.user_id,
+                models.Room_Management.created_at,   
+                models.Room_Management.temp, 
+                models.Room_Management.humidity, 
+                models.Room_Management.finedust, 
+                models.Room_Management.ledcolor). \
             join(models.RoomList, models.RoomList.id == models.Room_Management.room_id). \
-            filter_by(user_id=db_user_id, room_name = room_name). \
+            filter_by(room_name = room_name). \
             order_by(desc(models.Room_Management.created_at)). \
+            offset(start-1).limit(amount).all()
+            
+    return q
+
+
+# 날짜가 일부라도 겹치는 데이터들만 시작 숫자 부터 보여줄 데이터 양 까지 리턴
+@app.get("/findDate/{searchText}/{room_name}/{start}/{amount}",status_code=200)
+def stat_info(searchText:str,room_name:str,start:int,amount:int,db:Session=Depends(get_db)):
+    Date = models.Room_Management.created_at.contains(searchText,autoescape=True)
+    q = db.query(models.RoomList.id, 
+                models.RoomList.room_name, 
+                models.RoomList.user_id,
+                models.Room_Management.created_at,  
+                models.Room_Management.temp, 
+                models.Room_Management.humidity, 
+                models.Room_Management.finedust, 
+                models.Room_Management.ledcolor). \
+            join(models.RoomList, models.RoomList.id == models.Room_Management.room_id). \
+            filter_by(room_name = room_name). \
+            where(Date). \
+            order_by(desc(models.Room_Management.created_at)). \
+            offset(start-1).limit(amount).all()
+            
+    return q
+
+# 미세먼지 특정 값만을 리턴해주는 역할
+@app.get("/findFinedust/{searchText}/{room_name}/{start}/{amount}",status_code=200)
+def stat_info(searchText:str,room_name:str,start:int,amount:int,db:Session=Depends(get_db)):
+    q = db.query(models.RoomList.id, 
+                models.RoomList.room_name, 
+                models.RoomList.user_id, 
+                models.Room_Management.created_at,  
+                models.Room_Management.temp, 
+                models.Room_Management.humidity, 
+                models.Room_Management.finedust, 
+                models.Room_Management.ledcolor). \
+            join(models.RoomList, models.RoomList.id == models.Room_Management.room_id). \
+            filter_by(room_name = room_name). \
+            order_by(desc(models.Room_Management.created_at)). \
+            filter(models.Room_Management.finedust == searchText). \
+            offset(start-1).limit(amount).all()
+            
+    return q
+
+# 특정 온도를 포함하는 데이터만 리턴해 주는 역할
+@app.get("/findTemp/{searchText}/{room_name}/{start}/{amount}",status_code=200)
+def stat_info(searchText:str,room_name:str,start:int,amount:int,db:Session=Depends(get_db)):
+    q = db.query(models.RoomList.id, 
+                models.RoomList.room_name, 
+                models.RoomList.user_id, 
+                models.Room_Management.created_at,  
+                models.Room_Management.temp, 
+                models.Room_Management.humidity, 
+                models.Room_Management.finedust, 
+                models.Room_Management.ledcolor). \
+            join(models.RoomList, models.RoomList.id == models.Room_Management.room_id). \
+            filter_by(room_name = room_name). \
+            order_by(desc(models.Room_Management.created_at)). \
+            filter(models.Room_Management.temp == searchText). \
+            offset(start-1).limit(amount).all()
+            
+    return q
+
+# 특정 습도값만 포함하는 데이터만 리턴해 주는 역할
+@app.get("/findHumidity/{searchText}/{room_name}/{start}/{amount}",status_code=200)
+def stat_info(searchText:str,room_name:str,start:int,amount:int,db:Session=Depends(get_db)):
+    q = db.query(models.RoomList.id, 
+                models.RoomList.room_name, 
+                models.RoomList.user_id, 
+                models.Room_Management.created_at,  
+                models.Room_Management.temp, 
+                models.Room_Management.humidity, 
+                models.Room_Management.finedust, 
+                models.Room_Management.ledcolor). \
+            join(models.RoomList, models.RoomList.id == models.Room_Management.room_id). \
+            filter_by(room_name = room_name). \
+            order_by(desc(models.Room_Management.created_at)). \
+            filter(models.Room_Management.humidity == searchText). \
             offset(start-1).limit(amount).all()
             
     return q
@@ -214,12 +309,15 @@ def stat_info(login_id:str,room_name:str,start:int,amount:int,db:Session=Depends
 
 # 안드로이드
 
+@app.get("/test")
+def test():
+    return {"message":"아아"}
 
 #홈화면
 @app.get("/home/{login_id}",response_model=schemas.Room,status_code=200) # 하드웨어에서 현재위치를 받아 그 위치의 가장 최근 정보 전달-> 수정해야 함
 def home_info(login_id:str, db:Session=Depends(get_db)):
     db_user_id = db.query(models.User.id).filter_by(login_id=login_id).scalar_subquery()
-    db_room_id = db.query(models.RoomList.id).filter_by(user_id=db_user_id,room_name="tt").scalar_subquery()
+    db_room_id = db.query(models.RoomList.id).filter_by(user_id=db_user_id,room_name="eee").scalar_subquery()
     room_info = db.query(models.Room_Management).filter_by(room_id=db_room_id).order_by(desc(models.Room_Management.created_at)).first()
 
     return room_info
@@ -230,7 +328,7 @@ def stat_info(login_id:str,room_name:str,startdate:str,enddate:str,db:Session=De
     db_user_id = db.query(models.User.id).filter_by(login_id=login_id).scalar_subquery()
 
     q = db.query(models.Room_Management.temp, 
-                models.Room_Management.humitiy, 
+                models.Room_Management.humidity, 
                 models.Room_Management.finedust, 
                 ). \
             join(models.RoomList, models.RoomList.id == models.Room_Management.room_id). \
@@ -249,6 +347,7 @@ async def register(login_id: str, move_select:str, move_set:str, room_name: str,
     
     if not id_exist or not room_exist:
         return {"result":"FALSE"}
+        
     else:
         models.Move.create(db,auto_commit=True,room_id =db_room_id,move_select=move_select,move_set=move_set)
         return {"result":"TRUE"}

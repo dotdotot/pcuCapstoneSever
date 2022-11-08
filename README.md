@@ -63,10 +63,38 @@ $ pip install uvicorn
 ```
 
 * stat_web(get)
->login_id, room_name, start, amount을 json header로 입력받음
+>room_name, start, amount을 json header로 입력받음
 >room테이블의 created_at을 내림차순으로 정렬해서 start-1부터 amount개의 데이터 리턴
 ```c
-@app.get("/stat_web/{login_id}/{room_name}/{start}/{amount}",status_code=200)
+@app.get("/stat_web/{room_name}/{start}/{amount}",status_code=200)
+```
+
+* findDate(get)
+>searchText, room_name, start, amount을 json header로 입력받음
+>searchText로 값을 넘겨주면 해당 방 중에서 날짜가 일부라도 겹치는 데이터들만 시작 숫자부터 보여줄 데이터 양까지 리턴
+```c
+@app.get("/findDate/{searchText}/{room_name}/{start}/{amount}",status_code=200)
+```
+
+* findFinedust(get)
+>searchText, room_name, start, amount을 json header로 입력받음
+>findDate과 유사하게 미세먼지 특정 값만을 리턴
+```c
+@app.get("/findFinedust/{searchText}/{room_name}/{start}/{amount}",status_code=200)
+```
+
+* findTemp(get)
+>searchText, room_name, start, amount을 json header로 입력받음
+>findDate과 유사하게 특정 온도를 포함하는 데이터만 리턴해 주는 역할
+```c
+@app.get("/findTemp/{searchText}/{room_name}/{start}/{amount}",status_code=200)
+```
+
+* findHumidity(get)
+>searchText, room_name, start, amount을 json header로 입력받음
+>findDate과 유사하게 특정 습도값만 포함하는 데이터들만 리턴
+```c
+@app.get("/findHumidity/{searchText}/{room_name}/{start}/{amount}",status_code=200)
 ```
 
 ## ANDROID
