@@ -7,5 +7,11 @@ enigne = create_engine(URL,pool_pre_ping=True)
 
 SessionLocal = sessionmaker(autocommit=False,autoflush=False, bind=enigne)
 
+def get_db():
+    try:
+        db = SessionLocal()
+        yield db
+    finally:
+        db.close()
 
 Base = declarative_base()
